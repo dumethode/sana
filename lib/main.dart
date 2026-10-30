@@ -1,3 +1,3 @@
-import 'package:flutter/material.dart';
+import 'bootstrap.dart';
 
-void main() => runApp(const MaterialApp(home: Scaffold(body: Center(child: Text('Sana')))));
+void main() => bootstrap();
