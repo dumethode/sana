@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Incident photos live at incidents/{uid}/{incidentId}_{millis}.{ext}.
+// The owner is encoded in the path, so ownership is checked without a
+// database lookup.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function verified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    match /incidents/{uid}/{fileName} {
+      // Any verified community member can view report photos.
+      allow read: if verified();
+
+      // Only the owner, only images, at most 5 MB. Overwrites are refused
+      // so an existing report's photo cannot be swapped silently.
+      allow create: if verified()
+        && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+
+      allow update: if false;
+
+      allow delete: if verified() && request.auth.uid == uid;
+    }
+
+    // Everything else is closed.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

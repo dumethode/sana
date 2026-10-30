@@ -1,0 +1,323 @@
+rules_version = '2';
+
+// Sana security rules.
+//
+// The app hides buttons a user should not press, but these rules are the
+// real access control. Every guarantee described in the technical report
+// is enforced here and covered by firebase_rules_test/.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------ identity
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function verified() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    function aluEmail() {
+      return myEmail().matches('.*@(alustudent|alueducation)[.]com$');
+    }
+
+    // Builds a document path from a "collection/id" string.
+    function docPath(p) {
+      return path('/databases/' + database + '/documents/' + p);
+    }
+
+    // Staff status is decided by the allowlist on every request, not by a
+    // field the user could have written. Deleting the allowlist entry in
+    // the console revokes staff powers immediately.
+    function allowlisted() {
+      return exists(docPath('staffAllowlist/' + myEmail()));
+    }
+
+    // A member is a verified account with an ALU email, or a verified
+    // non-ALU staff contractor registered by campus administration.
+    function member() {
+      return verified() && (aluEmail() || allowlisted());
+    }
+
+    function hasProfile() {
+      return exists(docPath('users/' + request.auth.uid));
+    }
+
+    function isStaff() {
+      return member() && allowlisted();
+    }
+
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ------------------------------------------------------------ vocab
+
+    function categories() {
+      return ['water', 'electricity', 'facilities', 'sanitation', 'safety', 'internet', 'other'];
+    }
+
+    function severities() {
+      return ['low', 'medium', 'high', 'critical'];
+    }
+
+    function areas() {
+      return ['residence', 'classrooms', 'library', 'dining', 'sports', 'grounds', 'offices', 'other'];
+    }
+
+    function openStatuses() {
+      return ['submitted', 'acknowledged', 'in_progress'];
+    }
+
+    // Mirrors lib/features/incidents/logic/status_workflow.dart.
+    function validTransition(from, to) {
+      return from == to || to in {
+        'submitted': ['acknowledged', 'in_progress', 'resolved', 'rejected'],
+        'acknowledged': ['in_progress', 'resolved', 'rejected'],
+        'in_progress': ['resolved'],
+        'resolved': ['in_progress'],
+        'rejected': ['acknowledged']
+      }[from];
+    }
+
+    function str(v, min, max) {
+      return v is string && v.trim().size() >= min && v.size() <= max;
+    }
+
+    // Mirrors the limits in lib/core/utils/validators.dart.
+    function validContent(d) {
+      return str(d.title, 5, 80)
+        && str(d.description, 20, 1000)
+        && str(d.locationDetail, 2, 120)
+        && d.category in categories()
+        && d.severity in severities()
+        && d.locationArea in areas()
+        && (d.photoUrl == null || d.photoUrl is string)
+        && (d.photoPath == null
+            || (d.photoPath is string && d.photoPath.matches('incidents/' + request.auth.uid + '/.+')));
+    }
+
+    // One report per minute per person, enforced on the server. The client
+    // writes users/{uid}.lastReportAt = serverTimestamp() in the same batch;
+    // the rule compares the old value with the request time.
+    function cooldownOk() {
+      let before = get(docPath('users/' + request.auth.uid)).data;
+      let after = getAfter(docPath('users/' + request.auth.uid)).data;
+      return after.get('lastReportAt', null) == request.time
+        && (before.get('lastReportAt', null) == null
+            || request.time > before.lastReportAt + duration.value(60, 's'));
+    }
+
+    function incidentKeys() {
+      return ['title', 'description', 'category', 'severity', 'locationArea', 'locationDetail',
+              'photoUrl', 'photoPath', 'status', 'statusNote', 'reporterId', 'affectedBy',
+              'reopenCount', 'resolvedAt', 'createdAt', 'updatedAt'];
+    }
+
+    // ------------------------------------------------------------ users
+
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isStaff());
+
+      // Role can only be 'staff' when the allowlist says so.
+      allow create: if member()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'department', 'createdAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.email == myEmail()
+        && str(request.resource.data.displayName, 2, 60)
+        && request.resource.data.createdAt == request.time
+        && (request.resource.data.role == 'student'
+            || (request.resource.data.role == 'staff' && allowlisted()));
+
+      // Role, email and creation time are immutable from the client.
+      allow update: if member()
+        && request.auth.uid == uid
+        && changed().hasOnly(['displayName', 'lastReportAt'])
+        && str(request.resource.data.displayName, 2, 60)
+        && (!('lastReportAt' in changed()) || request.resource.data.lastReportAt == request.time);
+
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------ allowlist
+
+    // Managed in the Firebase Console only. A signed-in user may check
+    // their own entry and nothing else (no listing of staff emails).
+    match /staffAllowlist/{email} {
+      allow get: if signedIn() && email == myEmail();
+      allow list, write: if false;
+    }
+
+    // ------------------------------------------------------------ incidents
+
+    match /incidents/{incidentId} {
+      allow read: if member();
+
+      allow create: if member() && hasProfile()
+        && request.resource.data.keys().hasOnly(incidentKeys())
+        && request.resource.data.keys().hasAll(incidentKeys())
+        && validContent(request.resource.data)
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.status == 'submitted'
+        && request.resource.data.statusNote == null
+        && request.resource.data.affectedBy == []
+        && request.resource.data.reopenCount == 0
+        && request.resource.data.resolvedAt == null
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && !isStaff()
+        && cooldownOk();
+
+      allow update: if member() && (ownerEdit() || affectedToggle() || staffUpdate() || ownerReopen());
+
+      // Only the reporter, only before staff have acted. Staff never delete:
+      // they close a report as "Not actioned" so the audit trail survives.
+      allow delete: if member()
+        && resource.data.reporterId == request.auth.uid
+        && resource.data.status == 'submitted';
+
+      function ownerEdit() {
+        return resource.data.reporterId == request.auth.uid
+          && resource.data.status == 'submitted'
+          && changed().hasOnly(['title', 'description', 'category', 'severity', 'locationArea',
+                                'locationDetail', 'photoUrl', 'photoPath', 'updatedAt'])
+          && validContent(request.resource.data)
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      // Add or remove exactly your own UID, never on your own report, only
+      // while the report is open.
+      function affectedToggle() {
+        let me = request.auth.uid;
+        let before = resource.data.affectedBy;
+        let after = request.resource.data.affectedBy;
+        return resource.data.reporterId != me
+          && resource.data.status in openStatuses()
+          && changed().hasOnly(['affectedBy'])
+          && ((!(me in before) && after == before.concat([me]))
+              || (me in before && after == before.removeAll([me])));
+      }
+
+      function staffUpdate() {
+        let before = resource.data;
+        let after = request.resource.data;
+        let statusChanged = after.status != before.status;
+        return isStaff()
+          && changed().hasOnly(['status', 'severity', 'statusNote', 'updatedAt', 'resolvedAt'])
+          && validTransition(before.status, after.status)
+          && after.severity in severities()
+          && after.updatedAt == request.time
+          && (after.statusNote == null || str(after.statusNote, 5, 500))
+          // A reason is required to close a report.
+          && (!(statusChanged && after.status in ['resolved', 'rejected'])
+              || str(after.statusNote, 5, 500))
+          && (statusChanged
+              ? (after.status == 'resolved'
+                  ? after.resolvedAt == request.time
+                  : after.get('resolvedAt', null) == null)
+              : after.get('resolvedAt', null) == before.get('resolvedAt', null));
+      }
+
+      function ownerReopen() {
+        return resource.data.reporterId == request.auth.uid
+          && resource.data.status == 'resolved'
+          && resource.data.reopenCount < 2
+          && changed().hasOnly(['status', 'reopenCount', 'resolvedAt', 'statusNote', 'updatedAt'])
+          && request.resource.data.status == 'in_progress'
+          && request.resource.data.reopenCount == resource.data.reopenCount + 1
+          && request.resource.data.resolvedAt == null
+          && str(request.resource.data.statusNote, 5, 500)
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      // ---------------------------------------------- timeline (append-only)
+
+      match /history/{eventId} {
+        allow read: if member();
+        allow update: if false;
+
+        allow create: if member()
+          && request.resource.data.keys().hasOnly(['type', 'from', 'to', 'note', 'actorRole', 'actorName', 'createdAt'])
+          && request.resource.data.createdAt == request.time
+          && (request.resource.data.note == null || str(request.resource.data.note, 1, 600))
+          && (createdEvent() || editedEvent() || statusEvent() || reopenedEvent());
+
+        // Removed only together with a report its owner deletes.
+        allow delete: if member()
+          && get(docPath('incidents/' + incidentId)).data.reporterId == request.auth.uid
+          && get(docPath('incidents/' + incidentId)).data.status == 'submitted'
+          && !existsAfter(docPath('incidents/' + incidentId));
+
+        function parentAfter() {
+          return getAfter(docPath('incidents/' + incidentId)).data;
+        }
+
+        function createdEvent() {
+          return request.resource.data.type == 'created'
+            && !exists(docPath('incidents/' + incidentId))
+            && parentAfter().reporterId == request.auth.uid
+            && request.resource.data.to == 'submitted'
+            && request.resource.data.actorRole == 'student'
+            && request.resource.data.actorName == null;
+        }
+
+        function editedEvent() {
+          return request.resource.data.type == 'edited'
+            && parentAfter().reporterId == request.auth.uid
+            && parentAfter().status == 'submitted'
+            && request.resource.data.actorRole == 'student'
+            && request.resource.data.actorName == null;
+        }
+
+        // Must describe the change actually made in the same batch.
+        function statusEvent() {
+          return request.resource.data.type == 'status'
+            && isStaff()
+            && request.resource.data.from == get(docPath('incidents/' + incidentId)).data.status
+            && request.resource.data.to == parentAfter().status
+            && request.resource.data.actorRole == 'staff'
+            && request.resource.data.actorName is string;
+        }
+
+        function reopenedEvent() {
+          return request.resource.data.type == 'reopened'
+            && parentAfter().reporterId == request.auth.uid
+            && get(docPath('incidents/' + incidentId)).data.status == 'resolved'
+            && parentAfter().status == 'in_progress'
+            && request.resource.data.actorRole == 'student';
+        }
+      }
+
+      // ---------------------------------------------- reporter identity
+
+      // Hidden from other students. Readable by staff and the reporter.
+      match /private/{docId} {
+        allow read: if docId == 'reporter'
+          && (isStaff() || (member() && resource.data.uid == request.auth.uid));
+
+        allow create: if member()
+          && docId == 'reporter'
+          && !exists(docPath('incidents/' + incidentId))
+          && getAfter(docPath('incidents/' + incidentId)).data.reporterId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'email'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.email == myEmail()
+          && request.resource.data.name is string;
+
+        allow update: if false;
+
+        allow delete: if member()
+          && resource.data.uid == request.auth.uid
+          && get(docPath('incidents/' + incidentId)).data.status == 'submitted'
+          && !existsAfter(docPath('incidents/' + incidentId));
+      }
+    }
+  }
+}
