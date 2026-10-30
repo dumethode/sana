@@ -422,7 +422,7 @@ class _CategoryGrid extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(cat.icon, color: cat.color),
+                              Icon(cat.icon, color: context.onTint(cat.color)),
                               const SizedBox(height: Gap.s),
                               Text(cat.label, style: context.text.titleSmall),
                               const SizedBox(height: 2),

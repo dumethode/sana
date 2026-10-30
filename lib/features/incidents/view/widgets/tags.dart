@@ -15,8 +15,7 @@ class _TintPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg = isDark ? Color.lerp(color, Colors.white, 0.35)! : color;
+    final fg = context.onTint(color);
     return Container(
       padding: EdgeInsets.symmetric(horizontal: dense ? 8 : 10, vertical: dense ? 3 : 5),
       decoration: BoxDecoration(color: SanaPalette.tint(color), borderRadius: BorderRadius.circular(999)),

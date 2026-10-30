@@ -128,7 +128,7 @@ class _Stub extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(incident.category.icon, color: c, size: 24),
+          Icon(incident.category.icon, color: context.onTint(c), size: 24),
           const SizedBox(height: Gap.s),
           // Perforation dots: the visual cue that this is a ticket.
           for (var k = 0; k < 3; k++)

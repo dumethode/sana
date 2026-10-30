@@ -117,7 +117,7 @@ Then sign up in the app with that email. A non-ALU address (for example a contra
 
 ```bash
 flutter analyze                # 0 issues
-flutter test                   # 48 tests: validators, workflow, query logic, persistence, blocs, widgets
+flutter test                   # 54 tests: validators, contrast, workflow, query logic, persistence, blocs, widgets
 
 cd firebase_rules_test
 npm install

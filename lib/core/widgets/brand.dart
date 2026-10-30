@@ -20,7 +20,7 @@ class SanaMark extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(color: p.signal, borderRadius: BorderRadius.circular(size * 0.28)),
-          child: Icon(Icons.handyman_outlined, color: Colors.white, size: size * 0.55),
+          child: Icon(Icons.handyman_outlined, color: p.onSignal, size: size * 0.55),
         ),
         if (showWordmark) ...[
           SizedBox(width: size * 0.3),

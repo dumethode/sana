@@ -15,13 +15,14 @@ A maintenance work order, not a social feed. Each report is a **ticket**: a stub
 | ink | `#0B1F3A` | `#E7ECF3` | Primary text, headings |
 | inkMuted | `#5A6373` | `#9AA4B2` | Secondary text |
 | line | `#E2DED5` | `#262C36` | 1 px borders, dividers |
-| signal | `#E8551E` | `#FF6A33` | The single action colour: Report button, primary buttons, focus |
+| signal | `#C2410C` | `#FF6A33` | The single action colour: Report button, primary buttons, focus |
+| onSignal | `#FFFFFF` | `#0E1116` | Text and icons on signal (5.2:1 light, 6.6:1 dark) |
 
 Status colours: Submitted `#64748B`, Acknowledged `#4F46E5`, In progress `#C27803`, Resolved `#15803D`, Rejected `#B42318`.
 
 Category colours: Water `#0284C7`, Electricity `#CA8A04`, Facilities `#8B5E34`, Sanitation `#0F766E`, Safety `#DC2626`, Internet `#7C3AED`, Other `#475569`.
 
-All text on tinted chips uses the full-strength colour on a 12% tint of itself, which keeps contrast above 4.5:1 in both themes.
+Chips put text on a 12% tint of their own colour. The raw colours do not all pass on a tint (Electricity yellow is 2.6:1), so text and icons use `SanaPalette.onTint`: the colour darkened 30% in light mode or lightened 35% in dark mode. The weakest pair is 4.8:1, above WCAG 2.2 AA (4.5:1).
 
 ## 3. Type
 

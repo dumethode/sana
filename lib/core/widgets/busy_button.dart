@@ -30,7 +30,7 @@ class BusyButton extends StatelessWidget {
         onPressed: busy ? null : onPressed,
         style: FilledButton.styleFrom(
           disabledBackgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.55),
-          disabledForegroundColor: Colors.white,
+          disabledForegroundColor: Theme.of(context).colorScheme.onPrimary,
         ),
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
@@ -42,7 +42,11 @@ class BusyButton extends StatelessWidget {
                     SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white, value: progress),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                        value: progress,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Text(busyText),

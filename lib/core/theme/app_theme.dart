@@ -46,7 +46,7 @@ abstract final class AppTheme {
       brightness: brightness,
     ).copyWith(
       primary: p.signal,
-      onPrimary: Colors.white,
+      onPrimary: p.onSignal,
       surface: p.surface,
       onSurface: p.ink,
       outline: p.line,
@@ -116,7 +116,7 @@ abstract final class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: p.signal,
-          foregroundColor: Colors.white,
+          foregroundColor: p.onSignal,
           minimumSize: const Size.fromHeight(52),
           textStyle: text.labelLarge,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.control)),

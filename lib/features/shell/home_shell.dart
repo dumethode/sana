@@ -82,7 +82,7 @@ class _HomeShellState extends State<HomeShell> {
             ? FloatingActionButton.extended(
                 heroTag: 'report',
                 backgroundColor: context.palette.signal,
-                foregroundColor: Colors.white,
+                foregroundColor: context.palette.onSignal,
                 elevation: 0,
                 highlightElevation: 0,
                 onPressed: () => _openReportForm(context),
@@ -120,7 +120,7 @@ class _HomeShellState extends State<HomeShell> {
                             heroTag: 'report-rail',
                             tooltip: 'Report an issue',
                             backgroundColor: context.palette.signal,
-                            foregroundColor: Colors.white,
+                            foregroundColor: context.palette.onSignal,
                             elevation: 0,
                             onPressed: () => _openReportForm(context),
                             child: const Icon(Icons.add),
