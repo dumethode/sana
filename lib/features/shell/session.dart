@@ -16,34 +16,47 @@ class FeedBloc extends IncidentListBloc {
 
 /// Live list of the signed-in student's own reports.
 class MyReportsBloc extends IncidentListBloc {
-  MyReportsBloc(IncidentRepository repo, String uid) : super(() => repo.watchMine(uid));
+  MyReportsBloc(IncidentRepository repo, String uid)
+    : super(() => repo.watchMine(uid));
 }
 
-/// Creates the blocs that live for the whole signed-in session and sit above
+/// Creates the blocs that live for the whole signed-in  and sit above
 /// every tab. Filter storage is keyed by UID so two people sharing a phone
 /// never see each other's saved searches.
-class SessionScope extends StatelessWidget {
-  const SessionScope({super.key, required this.user, required this.child});
+class Scope extends StatelessWidget {
+  const Scope({super.key, required this.user, required this.child});
 
   final AppUser user;
   final Widget child;
 
-  static const openStatuses = {IncidentStatus.submitted, IncidentStatus.acknowledged, IncidentStatus.inProgress};
+  static const openStatuses = {
+    IncidentStatus.submitted,
+    IncidentStatus.acknowledged,
+    IncidentStatus.inProgress,
+  };
 
   @override
   Widget build(BuildContext context) {
     final repo = context.read<IncidentRepository>();
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => FeedBloc(repo)..add(const IncidentListSubscriptionRequested())),
         BlocProvider(
-          create: (_) => MyReportsBloc(repo, user.uid)..add(const IncidentListSubscriptionRequested()),
+          create: (_) =>
+              FeedBloc(repo)..add(const IncidentListSubscriptionRequested()),
+        ),
+        BlocProvider(
+          create: (_) =>
+              MyReportsBloc(repo, user.uid)
+                ..add(const IncidentListSubscriptionRequested()),
         ),
         BlocProvider(
           create: (_) => IncidentFilterCubit(
             storageId: '${user.isStaff ? 'staff' : 'feed'}-filter-${user.uid}',
             initial: user.isStaff
-                ? const IncidentFilter(statuses: openStatuses, sort: IncidentSort.severity)
+                ? const IncidentFilter(
+                    statuses: openStatuses,
+                    sort: IncidentSort.severity,
+                  )
                 : const IncidentFilter(),
           ),
         ),
@@ -53,9 +66,13 @@ class SessionScope extends StatelessWidget {
   }
 
   /// Pushed pages are siblings of the shell in the Navigator, not children,
-  /// so they re-receive the session blocs explicitly. This is what lets a
+  /// so they re-receive the  blocs explicitly. This is what lets a
   /// detail page or the report form read the same live state as the tabs.
-  static Route<T> route<T>(BuildContext context, Widget page, {bool fullscreenDialog = false}) {
+  static Route<T> route<T>(
+    BuildContext context,
+    Widget page, {
+    bool fullscreenDialog = false,
+  }) {
     final feed = context.read<FeedBloc>();
     final mine = context.read<MyReportsBloc>();
     final filter = context.read<IncidentFilterCubit>();

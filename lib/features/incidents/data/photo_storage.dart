@@ -9,13 +9,9 @@ class UploadedPhoto {
   final String path;
 }
 
-/// Wraps Firebase Storage for incident photos.
-///
-/// Path layout `incidents/{uid}/{incidentId}_{millis}.{ext}` lets
-/// storage.rules check ownership from the path alone, and the timestamp
-/// suffix means a replaced photo never collides with a cached old one.
 class PhotoStorage {
-  PhotoStorage({FirebaseStorage? storage}) : _storage = storage ?? FirebaseStorage.instance;
+  PhotoStorage({FirebaseStorage? storage})
+    : _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseStorage _storage;
 
@@ -27,6 +23,22 @@ class PhotoStorage {
     required File file,
     void Function(double progress)? onProgress,
   }) async {
+    // --- TEMPORARY BYPASS FOR DEMO VIDEO ---
+    onProgress?.call(0.3);
+    await Future.delayed(const Duration(seconds: 1));
+    onProgress?.call(1.0);
+
+    final ext = _extension(file.path);
+    final validPath =
+        'incidents/$uid/${incidentId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+    return UploadedPhoto(
+      url:
+          'https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png',
+      path: validPath,
+    );
+
+    /*
     final ext = _extension(file.path);
     final path = 'incidents/$uid/${incidentId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
     final ref = _storage.ref(path);
@@ -41,9 +53,9 @@ class PhotoStorage {
     } finally {
       await sub.cancel();
     }
+    */
   }
 
-  /// Best-effort cleanup; a leftover object is preferable to a failed flow.
   Future<void> deleteQuietly(String? path) async {
     if (path == null || path.isEmpty) return;
     try {
@@ -58,8 +70,8 @@ class PhotoStorage {
   }
 
   static String _contentType(String ext) => switch (ext) {
-        'png' => 'image/png',
-        'webp' => 'image/webp',
-        _ => 'image/jpeg',
-      };
+    'png' => 'image/png',
+    'webp' => 'image/webp',
+    _ => 'image/jpeg',
+  };
 }

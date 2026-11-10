@@ -8,6 +8,9 @@ Students report broken facilities, water and power outages, sanitation problems,
 Flutter · Firebase Authentication · Cloud Firestore · Firebase Storage · flutter_bloc
 
 ---
+## Demo Video
+You can watch the full 10-minute feature walkthrough and backend architecture explanation here:
+**[Sana Demo Video - Google Drive](https://drive.google.com/file/d/1HiUjz2DH52hMzvV_Sq9lJJCun0BmwILt/view?usp=sharing)**
 
 ## What it does
 
